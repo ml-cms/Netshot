@@ -108,16 +108,20 @@ public class Snmp extends Poller {
 			this.target.setTimeout(5000);
 			this.target.setVersion(SnmpConstants.version3);
 			this.target.setAddress(new UdpAddress(address.getInetAddress(), PORT));
-			if (v3Credentials.getAuthKey() == null) {
+			if (v3Credentials.getAuthKey() == null || v3Credentials.getAuthKey().isEmpty()) {
 				this.target.setSecurityLevel(SecurityLevel.NOAUTH_NOPRIV);
+                log.debug("SNMPv3 AuthKey is empty - set level NOAUTH_NOPRIV");
 			}
-			else if (v3Credentials.getPrivKey() == null) {
+			else if (v3Credentials.getPrivKey() == null || v3Credentials.getPrivKey().isEmpty()) {
 				this.target.setSecurityLevel(SecurityLevel.AUTH_NOPRIV);
+                log.debug("SNMPv3 PrivKey is empty - set level AUTH_NOPRIV");
 			}
 			else {
 				this.target.setSecurityLevel(SecurityLevel.AUTH_PRIV);
+                log.debug("SNMPv3 PrivKey is not empty - set level AUTH_PRIV");
 			}
 			this.target.setSecurityName(new OctetString(v3Credentials.getUsername()));
+            log.debug("SNMPv3 Security Level: {}", this.target.getSecurityLevel());
 
 			// Prepare transport
 			log.debug("Auth Protocol called: {}", v3Credentials.getAuthType());
@@ -142,15 +146,41 @@ public class Snmp extends Poller {
 				this.privProtocol = Priv3DES.ID;
 			}
 
-			USM usm = new USM(SecurityProtocols.getInstance(), new OctetString(MPv3.createLocalEngineID()), 0);
-			usm.addUser(
-				new OctetString(v3Credentials.getUsername()),
-				new UsmUser(
-					new OctetString(v3Credentials.getUsername()), this.authProtocol,
-					new OctetString(v3Credentials.getAuthKey()), this.privProtocol,
-					new OctetString(v3Credentials.getPrivKey())));
-			SecurityModels.getInstance().addSecurityModel(usm);
-
+			
+            if (this.target.getSecurityLevel() == SecurityLevel.NOAUTH_NOPRIV) {
+                log.debug("SNMPv3 create NOAUTH_NOPRIV credentials");
+                USM usm = new USM(SecurityProtocols.getInstance(), new OctetString(MPv3.createLocalEngineID()), 0);
+                    usm.addUser(
+                    new OctetString(v3Credentials.getUsername()),
+                    new UsmUser(
+                        new OctetString(v3Credentials.getUsername()), null,
+                        null, null,
+                        null));
+                SecurityModels.getInstance().addSecurityModel(usm);
+            }
+            else if (this.target.getSecurityLevel() == SecurityLevel.AUTH_NOPRIV) {
+                log.debug("SNMPv3 create AUTH_NOPRIV credentials");
+                USM usm = new USM(SecurityProtocols.getInstance(), new OctetString(MPv3.createLocalEngineID()), 0);
+                    usm.addUser(
+                    new OctetString(v3Credentials.getUsername()),
+                    new UsmUser(
+                        new OctetString(v3Credentials.getUsername()), this.authProtocol,
+                        new OctetString(v3Credentials.getAuthKey()), null,
+                        null));
+                SecurityModels.getInstance().addSecurityModel(usm);
+            }
+            else {
+                log.debug("SNMPv3 create AUTH_PRIV credentials");
+                USM usm = new USM(SecurityProtocols.getInstance(), new OctetString(MPv3.createLocalEngineID()), 0);
+                    usm.addUser(
+                    new OctetString(v3Credentials.getUsername()),
+                    new UsmUser(
+                        new OctetString(v3Credentials.getUsername()), this.authProtocol,
+                        new OctetString(v3Credentials.getAuthKey()), this.privProtocol,
+                        new OctetString(v3Credentials.getPrivKey())));
+                SecurityModels.getInstance().addSecurityModel(usm);   
+            }
+			
 			start();
 		}
 	}
